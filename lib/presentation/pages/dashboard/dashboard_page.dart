@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/alert_prefs.dart';
 import '../../../domain/entities/dashboard_stats.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../widgets/kpi_card.dart';
@@ -18,12 +19,38 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  // Alertas ignoradas (persistidas, como la web)
+  static const _kIgnVentas = 'ign_ventas';
+  static const _kIgnCitas = 'ign_citas';
+  static const _kIgnPedidos = 'ign_pedidos';
+  Set<String> _ignVentas = {};
+  Set<String> _ignCitas = {};
+  Set<String> _ignPedidos = {};
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DashboardProvider>().cargar();
     });
+    _loadIgnored();
+  }
+
+  Future<void> _loadIgnored() async {
+    final v = await AlertPrefs.get(_kIgnVentas);
+    final c = await AlertPrefs.get(_kIgnCitas);
+    final p = await AlertPrefs.get(_kIgnPedidos);
+    if (!mounted) return;
+    setState(() {
+      _ignVentas = v;
+      _ignCitas = c;
+      _ignPedidos = p;
+    });
+  }
+
+  Future<void> _ignore(String key, Set<String> set, String id) async {
+    setState(() => set.add(id));
+    await AlertPrefs.add(key, id);
   }
 
   String _formatCOP(dynamic value) {
@@ -91,7 +118,15 @@ class _DashboardPageState extends State<DashboardPage> {
                   const SizedBox(height: 16),
 
                   // Alertas operativas (mismas que el dashboard web)
-                  _AlertsRow(stats: stats),
+                  _AlertsRow(
+                    stats: stats,
+                    ignVentas: _ignVentas,
+                    ignCitas: _ignCitas,
+                    ignPedidos: _ignPedidos,
+                    onIgnoreVenta: (id) => _ignore(_kIgnVentas, _ignVentas, id),
+                    onIgnoreCita: (id) => _ignore(_kIgnCitas, _ignCitas, id),
+                    onIgnorePedido: (id) => _ignore(_kIgnPedidos, _ignPedidos, id),
+                  ),
 
                   // KPI cards 2x2
                   GridView.count(
@@ -282,39 +317,78 @@ String _cop(dynamic v) {
 
 class _AlertsRow extends StatelessWidget {
   final DashboardStats stats;
-  const _AlertsRow({required this.stats});
+  final Set<String> ignVentas;
+  final Set<String> ignCitas;
+  final Set<String> ignPedidos;
+  final void Function(String id) onIgnoreVenta;
+  final void Function(String id) onIgnoreCita;
+  final void Function(String id) onIgnorePedido;
+
+  const _AlertsRow({
+    required this.stats,
+    required this.ignVentas,
+    required this.ignCitas,
+    required this.ignPedidos,
+    required this.onIgnoreVenta,
+    required this.onIgnoreCita,
+    required this.onIgnorePedido,
+  });
 
   @override
   Widget build(BuildContext context) {
     final chips = <Widget>[];
 
-    if (stats.ventasSinPago.isNotEmpty) {
+    void addChip({
+      required List<Map<String, dynamic>> items,
+      required Set<String> ignored,
+      required String label,
+      required String Function(Map<String, dynamic>) idOf,
+      required String Function(Map<String, dynamic>) primary,
+      required String Function(Map<String, dynamic>) secondary,
+      required void Function(String) onIgnore,
+    }) {
+      final visible = items.where((m) => !ignored.contains(idOf(m))).toList();
+      if (visible.isEmpty) return;
       chips.add(_AlertChip(
-        label: 'ventas sin pago',
-        items: stats.ventasSinPago,
-        primary: (m) => (m['cliente_nombre'] ?? 'Cliente').toString(),
-        secondary: (m) =>
-            '${formatFecha((m['fecha'] ?? '').toString())} · ${_cop(m['total'])}',
+        label: label,
+        items: visible,
+        idOf: idOf,
+        primary: primary,
+        secondary: secondary,
+        onIgnore: onIgnore,
       ));
     }
-    if (stats.citasSinVenta.isNotEmpty) {
-      chips.add(_AlertChip(
-        label: 'citas sin venta',
-        items: stats.citasSinVenta,
-        primary: (m) => (m['cliente_nombre'] ?? 'Cliente').toString(),
-        secondary: (m) =>
-            '${formatFecha((m['fecha'] ?? '').toString())} · ${formatHora((m['hora'] ?? '').toString())}',
-      ));
-    }
-    if (stats.pedidosAtrasados.isNotEmpty) {
-      chips.add(_AlertChip(
-        label: 'pedidos atrasados +3 días',
-        items: stats.pedidosAtrasados,
-        primary: (m) =>
-            '${m['servicio'] ?? 'Servicio'} — ${m['cliente_nombre'] ?? 'Cliente'}',
-        secondary: (m) => formatFecha((m['fecha'] ?? '').toString()),
-      ));
-    }
+
+    addChip(
+      items: stats.ventasSinPago,
+      ignored: ignVentas,
+      label: 'ventas sin pago',
+      idOf: (m) => (m['id_venta'] ?? '').toString(),
+      primary: (m) => (m['cliente_nombre'] ?? 'Cliente').toString(),
+      secondary: (m) =>
+          '${formatFecha((m['fecha'] ?? '').toString())} · ${_cop(m['total'])}',
+      onIgnore: onIgnoreVenta,
+    );
+    addChip(
+      items: stats.citasSinVenta,
+      ignored: ignCitas,
+      label: 'citas sin venta',
+      idOf: (m) => (m['id_cita'] ?? '').toString(),
+      primary: (m) => (m['cliente_nombre'] ?? 'Cliente').toString(),
+      secondary: (m) =>
+          '${formatFecha((m['fecha'] ?? '').toString())} · ${formatHora((m['hora'] ?? '').toString())}',
+      onIgnore: onIgnoreCita,
+    );
+    addChip(
+      items: stats.pedidosAtrasados,
+      ignored: ignPedidos,
+      label: 'pedidos atrasados +3 días',
+      idOf: (m) => (m['id_detalle'] ?? '').toString(),
+      primary: (m) =>
+          '${m['servicio'] ?? 'Servicio'} — ${m['cliente_nombre'] ?? 'Cliente'}',
+      secondary: (m) => formatFecha((m['fecha'] ?? '').toString()),
+      onIgnore: onIgnorePedido,
+    );
 
     if (chips.isEmpty) return const SizedBox.shrink();
     return Padding(
@@ -327,14 +401,18 @@ class _AlertsRow extends StatelessWidget {
 class _AlertChip extends StatelessWidget {
   final String label;
   final List<Map<String, dynamic>> items;
+  final String Function(Map<String, dynamic>) idOf;
   final String Function(Map<String, dynamic>) primary;
   final String Function(Map<String, dynamic>) secondary;
+  final void Function(String id) onIgnore;
 
   const _AlertChip({
     required this.label,
     required this.items,
+    required this.idOf,
     required this.primary,
     required this.secondary,
+    required this.onIgnore,
   });
 
   @override
@@ -372,45 +450,59 @@ class _AlertChip extends StatelessWidget {
   }
 
   void _showSheet(BuildContext context) {
+    // Copia local para reflejar de inmediato los ítems ignorados en el sheet
+    final local = List<Map<String, dynamic>>.from(items);
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text(
-                '${items.length} $label',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheet) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  '${local.length} $label',
+                  style:
+                      const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
               ),
-            ),
-            const Divider(height: 1),
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: items.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (_, i) {
-                  final it = items[i];
-                  return ListTile(
-                    dense: true,
-                    leading: const Icon(Icons.warning_amber_rounded,
-                        color: AppColors.warning, size: 20),
-                    title: Text(
-                      primary(it),
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w500),
-                    ),
-                    subtitle: Text(secondary(it),
-                        style: const TextStyle(fontSize: 12)),
-                  );
-                },
+              const Divider(height: 1),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: local.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final it = local[i];
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.warning_amber_rounded,
+                          color: AppColors.warning, size: 20),
+                      title: Text(
+                        primary(it),
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w500),
+                      ),
+                      subtitle: Text(secondary(it),
+                          style: const TextStyle(fontSize: 12)),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        tooltip: 'Ignorar',
+                        onPressed: () {
+                          onIgnore(idOf(it)); // persiste + actualiza el dashboard
+                          setSheet(() => local.removeAt(i));
+                          if (local.isEmpty) Navigator.of(sheetCtx).pop();
+                        },
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
