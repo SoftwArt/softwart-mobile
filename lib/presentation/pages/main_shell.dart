@@ -1,5 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/push_notification_service.dart';
+import '../providers/dashboard_provider.dart';
+import '../providers/citas_provider.dart';
+import '../providers/pedidos_provider.dart';
+import '../providers/ventas_provider.dart';
+import '../providers/pagos_provider.dart';
+import '../providers/clientes_provider.dart';
 import 'dashboard/dashboard_page.dart';
 import 'citas/citas_page.dart';
 import 'pedidos/pedidos_page.dart';
@@ -38,9 +46,42 @@ class _MainShellState extends State<MainShell> {
     (Icons.people_outline,        Icons.people_rounded,       'Clientes'),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    // Refresca listas en vivo cuando llega un push (cita nueva)
+    PushNotificationService.onMessageTick.addListener(_onPushMessage);
+  }
+
+  @override
+  void dispose() {
+    PushNotificationService.onMessageTick.removeListener(_onPushMessage);
+    super.dispose();
+  }
+
+  void _onPushMessage() {
+    if (!mounted) return;
+    // Una cita nueva afecta a Citas y al Dashboard
+    context.read<CitasProvider>().cargar();
+    context.read<DashboardProvider>().cargar();
+  }
+
+  // Recarga (silenciosa) la lista del módulo al que se navega
+  void _refrescar(int i) {
+    switch (i) {
+      case 0: context.read<DashboardProvider>().cargar(); break;
+      case 1: context.read<CitasProvider>().cargar(); break;
+      case 2: context.read<PedidosProvider>().cargar(); break;
+      case 3: context.read<VentasProvider>().cargar(); break;
+      case 4: context.read<PagosProvider>().cargar(); break;
+      case 5: context.read<ClientesProvider>().cargar(); break;
+    }
+  }
+
   void _navegar(int i) {
     setState(() => _selectedIndex = i);
     Navigator.of(context).pop();
+    _refrescar(i);
   }
 
   @override

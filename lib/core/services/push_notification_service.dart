@@ -18,11 +18,18 @@ class PushNotificationService {
   static final GlobalKey<ScaffoldMessengerState> messengerKey =
       GlobalKey<ScaffoldMessengerState>();
 
+  // Tick que incrementa con cada mensaje en primer plano — la UI lo escucha
+  // para recargar las listas afectadas (citas, dashboard) en vivo.
+  static final ValueNotifier<int> onMessageTick = ValueNotifier<int>(0);
+
   // Pide permiso y registra el listener de primer plano.
   // (El handler de segundo plano se registra en main.dart antes de runApp.)
   static Future<void> init() async {
     await _fm.requestPermission();
-    FirebaseMessaging.onMessage.listen(_showForeground);
+    FirebaseMessaging.onMessage.listen((message) {
+      _showForeground(message);
+      onMessageTick.value++; // dispara refresco de listas en vivo
+    });
   }
 
   static void _showForeground(RemoteMessage message) {
