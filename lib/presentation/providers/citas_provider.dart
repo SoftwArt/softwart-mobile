@@ -23,14 +23,24 @@ class CitasProvider extends ChangeNotifier {
   List<Cita> get citas => _citas;
 
   Future<void> cargar() async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+    final primeraCarga = _citas.isEmpty;
+    if (primeraCarga) {
+      _isLoading = true;
+      notifyListeners();
+    }
 
     try {
-      _citas = await _getCitasUsecase();
+      final data = await _getCitasUsecase();
+      // Más nuevas primero (fecha desc; desempate por id desc)
+      data.sort((a, b) {
+        final c = b.fecha.compareTo(a.fecha);
+        return c != 0 ? c : b.idCita.compareTo(a.idCita);
+      });
+      _citas = data;
+      _error = null;
     } catch (e) {
-      _error = e is AppException ? e.message : 'Error al cargar citas';
+      // En refresco silencioso, conserva la lista actual
+      if (primeraCarga) _error = e is AppException ? e.message : 'Error al cargar citas';
     } finally {
       _isLoading = false;
       notifyListeners();

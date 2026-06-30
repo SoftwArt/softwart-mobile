@@ -34,13 +34,21 @@ class PagosProvider extends ChangeNotifier {
   }
 
   Future<void> cargar() async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+    final primeraCarga = _pagos.isEmpty;
+    if (primeraCarga) {
+      _isLoading = true;
+      notifyListeners();
+    }
     try {
-      _pagos = await _getPagosUsecase();
+      final data = await _getPagosUsecase();
+      data.sort((a, b) {
+        final c = b.fecha.compareTo(a.fecha);
+        return c != 0 ? c : b.idPago.compareTo(a.idPago);
+      });
+      _pagos = data;
+      _error = null;
     } catch (e) {
-      _error = e.toString();
+      if (primeraCarga) _error = e.toString();
     } finally {
       _isLoading = false;
       notifyListeners();

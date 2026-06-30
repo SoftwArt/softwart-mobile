@@ -27,14 +27,22 @@ class VentasProvider extends ChangeNotifier {
   bool get isLoadingPagos => _isLoadingPagos;
 
   Future<void> cargar() async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+    final primeraCarga = _ventas.isEmpty;
+    if (primeraCarga) {
+      _isLoading = true;
+      notifyListeners();
+    }
 
     try {
-      _ventas = await _getVentasUsecase();
+      final data = await _getVentasUsecase();
+      data.sort((a, b) {
+        final c = b.fecha.compareTo(a.fecha);
+        return c != 0 ? c : b.idVenta.compareTo(a.idVenta);
+      });
+      _ventas = data;
+      _error = null;
     } catch (e) {
-      _error = e is AppException ? e.message : 'Error al cargar ventas';
+      if (primeraCarga) _error = e is AppException ? e.message : 'Error al cargar ventas';
     } finally {
       _isLoading = false;
       notifyListeners();

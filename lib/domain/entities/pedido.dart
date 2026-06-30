@@ -4,6 +4,7 @@ class Pedido {
   final String? clienteNombre;
   final String? nombreServicio;
   final String? observacion;
+  final String fecha;
   final int idEstado;
   final String estado;
   final double precio;
@@ -14,6 +15,7 @@ class Pedido {
     this.clienteNombre,
     this.nombreServicio,
     this.observacion,
+    this.fecha = '',
     required this.idEstado,
     required this.estado,
     required this.precio,

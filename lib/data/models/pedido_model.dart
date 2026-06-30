@@ -7,6 +7,7 @@ class PedidoModel extends Pedido {
     super.clienteNombre,
     super.nombreServicio,
     super.observacion,
+    super.fecha,
     required super.idEstado,
     required super.estado,
     required super.precio,
@@ -26,6 +27,7 @@ class PedidoModel extends Pedido {
       nombreServicio: service?['nombre'] as String?,
       // Observación de la línea (SaleDetail), no la descripción del servicio
       observacion: json['observacion'] as String?,
+      fecha: json['fecha']?.toString() ?? '',
       idEstado: serviceStatus?['id_estado'] as int? ?? 1,
       estado: serviceStatus?['nombre'] as String? ?? '',
       precio: double.tryParse(json['precio']?.toString() ?? '0') ?? 0.0,

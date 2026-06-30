@@ -30,18 +30,27 @@ class PedidosProvider extends ChangeNotifier {
   List<EstadoServicio> get estados => _estados;
 
   Future<void> cargar() async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+    final primeraCarga = _pedidos.isEmpty;
+    if (primeraCarga) {
+      _isLoading = true;
+      notifyListeners();
+    }
 
     try {
-      _pedidos = await _getPedidosUsecase();
+      final data = await _getPedidosUsecase();
+      // Más nuevos primero (fecha desc; desempate por id desc)
+      data.sort((a, b) {
+        final c = b.fecha.compareTo(a.fecha);
+        return c != 0 ? c : b.idDetalle.compareTo(a.idDetalle);
+      });
+      _pedidos = data;
       // Catálogo de estados (incluye "Cancelado") con sus ids reales del backend
       if (_estados.isEmpty) {
         _estados = await _getEstadosUsecase();
       }
+      _error = null;
     } catch (e) {
-      _error = e is AppException ? e.message : 'Error al cargar pedidos';
+      if (primeraCarga) _error = e is AppException ? e.message : 'Error al cargar pedidos';
     } finally {
       _isLoading = false;
       notifyListeners();
