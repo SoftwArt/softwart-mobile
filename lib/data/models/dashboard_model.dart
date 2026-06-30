@@ -10,6 +10,9 @@ class DashboardModel extends DashboardStats {
     super.citasHoyLista,
     super.ventasRecientes,
     super.pedidosPorEstado,
+    super.ventasSinPago,
+    super.citasSinVenta,
+    super.pedidosAtrasados,
   });
 
   factory DashboardModel.fromJson(Map<String, dynamic> json) {
@@ -24,6 +27,11 @@ class DashboardModel extends DashboardStats {
     final pedidosPorEstadoRaw =
         json['pedidos_por_estado'] as List<dynamic>? ?? [];
 
+    final alertas = json['alertas'] as Map<String, dynamic>? ?? {};
+    final ventasSinPagoRaw    = alertas['ventas_sin_pago'] as List<dynamic>? ?? [];
+    final citasSinVentaRaw    = alertas['citas_sin_venta'] as List<dynamic>? ?? [];
+    final pedidosAtrasadosRaw = alertas['pedidos_atrasados'] as List<dynamic>? ?? [];
+
     return DashboardModel(
       ventasMes: kpis['ventas_mes_actual'] as int? ?? 0,
       totalVentasMes:
@@ -34,6 +42,9 @@ class DashboardModel extends DashboardStats {
       citasHoyLista: citasHoyRaw.cast<Map<String, dynamic>>(),
       ventasRecientes: ventasRecientesRaw.cast<Map<String, dynamic>>(),
       pedidosPorEstado: pedidosPorEstadoRaw.cast<Map<String, dynamic>>(),
+      ventasSinPago: ventasSinPagoRaw.cast<Map<String, dynamic>>(),
+      citasSinVenta: citasSinVentaRaw.cast<Map<String, dynamic>>(),
+      pedidosAtrasados: pedidosAtrasadosRaw.cast<Map<String, dynamic>>(),
     );
   }
 }

@@ -8,6 +8,10 @@ class DashboardStats {
   final List<Map<String, dynamic>> citasHoyLista;
   final List<Map<String, dynamic>> ventasRecientes;
   final List<Map<String, dynamic>> pedidosPorEstado;
+  // Alertas operativas (mismas que el dashboard web)
+  final List<Map<String, dynamic>> ventasSinPago;
+  final List<Map<String, dynamic>> citasSinVenta;
+  final List<Map<String, dynamic>> pedidosAtrasados;
 
   const DashboardStats({
     required this.ventasMes,
@@ -18,5 +22,8 @@ class DashboardStats {
     this.citasHoyLista = const [],
     this.ventasRecientes = const [],
     this.pedidosPorEstado = const [],
+    this.ventasSinPago = const [],
+    this.citasSinVenta = const [],
+    this.pedidosAtrasados = const [],
   });
 }

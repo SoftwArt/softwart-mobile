@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../domain/entities/dashboard_stats.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../widgets/kpi_card.dart';
 import '../../widgets/user_menu_button.dart';
@@ -45,16 +46,7 @@ class _DashboardPageState extends State<DashboardPage> {
           onPressed: () => MainShell.scaffoldKey.currentState?.openDrawer(),
         ),
         title: const Text('Dashboard'),
-        actions: [
-          Consumer<DashboardProvider>(
-            builder: (context, provider, _) => IconButton(
-              icon: const Icon(Icons.refresh_rounded),
-              onPressed: provider.isLoading ? null : () => provider.cargar(),
-              tooltip: 'Actualizar',
-            ),
-          ),
-          const UserMenuButton(),
-        ],
+        actions: const [UserMenuButton()],
       ),
       body: Consumer<DashboardProvider>(
         builder: (context, provider, _) {
@@ -97,6 +89,9 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
+
+                  // Alertas operativas (mismas que el dashboard web)
+                  _AlertsRow(stats: stats),
 
                   // KPI cards 2x2
                   GridView.count(
@@ -269,6 +264,153 @@ class _VentaRecienteTile extends StatelessWidget {
             fontWeight: FontWeight.bold,
             color: AppColors.primary,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Alertas operativas (chips) ───────────────────────────────────────────────
+String _cop(dynamic v) {
+  final n = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '0') ?? 0;
+  final s = n.toStringAsFixed(0).replaceAllMapped(
+        RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+        (m) => '${m[1]}.',
+      );
+  return '\$$s';
+}
+
+class _AlertsRow extends StatelessWidget {
+  final DashboardStats stats;
+  const _AlertsRow({required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    final chips = <Widget>[];
+
+    if (stats.ventasSinPago.isNotEmpty) {
+      chips.add(_AlertChip(
+        label: 'ventas sin pago',
+        items: stats.ventasSinPago,
+        primary: (m) => (m['cliente_nombre'] ?? 'Cliente').toString(),
+        secondary: (m) =>
+            '${formatFecha((m['fecha'] ?? '').toString())} · ${_cop(m['total'])}',
+      ));
+    }
+    if (stats.citasSinVenta.isNotEmpty) {
+      chips.add(_AlertChip(
+        label: 'citas sin venta',
+        items: stats.citasSinVenta,
+        primary: (m) => (m['cliente_nombre'] ?? 'Cliente').toString(),
+        secondary: (m) =>
+            '${formatFecha((m['fecha'] ?? '').toString())} · ${formatHora((m['hora'] ?? '').toString())}',
+      ));
+    }
+    if (stats.pedidosAtrasados.isNotEmpty) {
+      chips.add(_AlertChip(
+        label: 'pedidos atrasados +3 días',
+        items: stats.pedidosAtrasados,
+        primary: (m) =>
+            '${m['servicio'] ?? 'Servicio'} — ${m['cliente_nombre'] ?? 'Cliente'}',
+        secondary: (m) => formatFecha((m['fecha'] ?? '').toString()),
+      ));
+    }
+
+    if (chips.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Wrap(spacing: 8, runSpacing: 8, children: chips),
+    );
+  }
+}
+
+class _AlertChip extends StatelessWidget {
+  final String label;
+  final List<Map<String, dynamic>> items;
+  final String Function(Map<String, dynamic>) primary;
+  final String Function(Map<String, dynamic>) secondary;
+
+  const _AlertChip({
+    required this.label,
+    required this.items,
+    required this.primary,
+    required this.secondary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => _showSheet(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.warning.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.warning_amber_rounded,
+                size: 16, color: AppColors.warning),
+            const SizedBox(width: 6),
+            Text(
+              '${items.length} $label',
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: AppColors.warning,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                size: 16, color: AppColors.warning),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                '${items.length} $label',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+            ),
+            const Divider(height: 1),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (_, i) {
+                  final it = items[i];
+                  return ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.warning_amber_rounded,
+                        color: AppColors.warning, size: 20),
+                    title: Text(
+                      primary(it),
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                    subtitle: Text(secondary(it),
+                        style: const TextStyle(fontSize: 12)),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
