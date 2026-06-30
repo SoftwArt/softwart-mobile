@@ -27,7 +27,8 @@ Android companion app for **Arte Café**, a framing and marquetry shop in Medell
 - **Flutter + Dart**
 - **Provider** — state management (ChangeNotifier)
 - **http** — REST API consumption
-- **shared_preferences** — JWT token persistence
+- **shared_preferences** — JWT token persistence + dismissed dashboard alerts
+- **firebase_core** + **firebase_messaging** — push notifications (FCM)
 
 ---
 
@@ -38,8 +39,9 @@ lib/
 ├── core/
 │   ├── constants/     — API base URL and all endpoints
 │   ├── errors/        — custom exceptions
+│   ├── services/      — push_notification_service (FCM, staff topic)
 │   ├── theme/         — AppColors
-│   └── utils/         — token storage, formatters
+│   └── utils/         — token storage, formatters, alert prefs
 ├── data/
 │   ├── datasources/   — one per domain (auth, citas, ventas, pagos...)
 │   ├── models/        — JSON deserialization
@@ -91,7 +93,21 @@ Status changes use animated `AnimatedContainer` chips — selected state uses `p
 
 ## Splash screen
 
-On launch, the splash screen sends a silent warmup ping to `/api/dashboard` to wake the Render server (free tier hibernates after inactivity) before the user reaches the login screen. Token validation runs in parallel — redirects to `/home` or `/login` accordingly.
+On launch, the splash screen sends a silent warmup ping to `/services` (public route) to wake the Render server (free tier hibernates after inactivity) before the user reaches the login screen. It then validates the token — redirects to `/home` or `/login` accordingly.
+
+---
+
+## Push notifications (FCM)
+
+The app subscribes to the **`staff` topic** on Admin/Employee login (no per-device tokens stored) and unsubscribes on logout. When a new appointment is booked, the backend pushes to the topic: Android shows the notification when the app is backgrounded/closed, and in the foreground the app shows a `SnackBar` and refreshes the affected lists live. Requires `android/app/google-services.json` (gitignored).
+
+---
+
+## Live updates & terminal states
+
+- Lists refresh on tab navigation and on incoming push; every list is sorted newest-first
+- Silent refresh: background reloads don't flash a loader and keep the current list if they fail
+- Terminal states mirror the web: `Cancelado` (service) asks for confirmation then locks; `Validado` / `Anulado` (payment) cannot be changed — backed by the backend's 409 guards
 
 ---
 
@@ -104,7 +120,11 @@ flutter build apk --release
 # Output: build/app/outputs/flutter-apk/app-release.apk (~49 MB)
 ```
 
-Production URL is set in `core/constants/api_constants.dart`. No additional configuration needed for the release build.
+The base URL defaults to production. To point the build at another API without touching code:
+
+```bash
+flutter build apk --release --dart-define=API_BASE_URL=https://other-api/api
+```
 
 ---
 
