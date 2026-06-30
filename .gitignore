@@ -49,3 +49,7 @@ app.*.map.json
 
 # Firebase (config local, no commitear)
 android/app/google-services.json
+
+# Crash dumps de la JVM (Gradle)
+android/hs_err_pid*.log
+android/replay_pid*.log
