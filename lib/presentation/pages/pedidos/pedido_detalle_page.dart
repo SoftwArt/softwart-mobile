@@ -88,6 +88,10 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _InfoRow(
+                      label: 'Cliente',
+                      valor: pedido.clienteNombre ?? '—',
+                    ),
+                    _InfoRow(
                       label: 'Servicio',
                       valor: pedido.nombreServicio ?? '—',
                     ),

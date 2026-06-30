@@ -45,10 +45,12 @@ class _PedidosPageState extends State<PedidosPage> {
   }
 
   List<Pedido> _filtrar(List<Pedido> todos) {
+    final q = _query.toLowerCase();
     return todos.where((p) {
       final matchQuery = _query.isEmpty ||
-          (p.nombreServicio ?? '').toLowerCase().contains(_query.toLowerCase()) ||
-          'venta #${p.idVenta}'.contains(_query.toLowerCase());
+          (p.clienteNombre ?? '').toLowerCase().contains(q) ||
+          (p.nombreServicio ?? '').toLowerCase().contains(q) ||
+          'venta #${p.idVenta}'.contains(q);
       final matchEstado = _filtroEstado == null ||
           p.estado.toLowerCase() == _filtroEstado!.toLowerCase();
       return matchQuery && matchEstado;
@@ -93,7 +95,7 @@ class _PedidosPageState extends State<PedidosPage> {
                         child: TextField(
                           controller: _searchController,
                           decoration: InputDecoration(
-                            hintText: 'Buscar por servicio o venta #...',
+                            hintText: 'Buscar por cliente, servicio o venta #...',
                             prefixIcon: const Icon(Icons.search, size: 20),
                             suffixIcon: _query.isNotEmpty
                                 ? IconButton(
@@ -254,11 +256,11 @@ class _PedidoTile extends StatelessWidget {
           ),
         ),
         title: Text(
-          pedido.nombreServicio ?? 'Servicio #${pedido.idDetalle}',
+          pedido.clienteNombre ?? pedido.nombreServicio ?? 'Servicio #${pedido.idDetalle}',
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
         subtitle: Text(
-          'Venta #${pedido.idVenta}  •  \$${_formatNum(pedido.precio)}',
+          '${pedido.nombreServicio ?? 'Servicio'}  •  \$${_formatNum(pedido.precio)}',
           style: const TextStyle(fontSize: 12),
         ),
         trailing: EstadoBadge(texto: pedido.estado),

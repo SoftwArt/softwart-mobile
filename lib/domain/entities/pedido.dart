@@ -1,6 +1,7 @@
 class Pedido {
   final int idDetalle;
   final int idVenta;
+  final String? clienteNombre;
   final String? nombreServicio;
   final String? observacion;
   final int idEstado;
@@ -10,6 +11,7 @@ class Pedido {
   const Pedido({
     required this.idDetalle,
     required this.idVenta,
+    this.clienteNombre,
     this.nombreServicio,
     this.observacion,
     required this.idEstado,
