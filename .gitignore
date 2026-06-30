@@ -46,3 +46,6 @@ app.*.map.json
 
 # Contexto
 /CLAUDE.md
+
+# Firebase (config local, no commitear)
+android/app/google-services.json

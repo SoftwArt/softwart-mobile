@@ -1,10 +1,11 @@
 // Constantes de API — SoftwArt Mobile
 class ApiConstants {
-  // Producción (Render)
-  static const String baseUrl = 'https://softwart-backend.onrender.com/api';
-  // Desarrollo local:
-  // static const String baseUrl = 'http://10.0.2.2:3001/api'; // Android emulator
-  // static const String baseUrl = 'http://localhost:3001/api'; // iOS simulator
+ 
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://softwart-backend.onrender.com/api',
+  );
+
 
   // Auth
   static const String login = '/auth/login';
@@ -19,6 +20,7 @@ class ApiConstants {
 
   // Sale Details (services/orders)
   static const String saleDetails = '/sale-details';
+  static const String serviceStatus = '/service-status';
   static String changeSaleDetailStatus(int id) =>
       '/service-status/detalle/$id/estado';
 
@@ -31,4 +33,5 @@ class ApiConstants {
 
   // Payments
   static const String payments = '/payments';
+  static String changePaymentStatus(int id) => '/payment-status/pago/$id/estado';
 }

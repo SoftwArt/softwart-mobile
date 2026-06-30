@@ -27,6 +27,7 @@ class _PedidosPageState extends State<PedidosPage> {
     'Sin empezar',
     'En preparación',
     'Finalizado',
+    'Cancelado',
   ];
 
   @override

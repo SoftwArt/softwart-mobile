@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/errors/exceptions.dart';
 import '../../domain/entities/pago.dart';
 import '../../domain/usecases/pagos/get_pagos_usecase.dart';
 import '../../domain/usecases/pagos/cambiar_estado_pago_usecase.dart';
@@ -47,8 +48,15 @@ class PagosProvider extends ChangeNotifier {
   }
 
   Future<bool> cambiarEstado(int idPago, int idEstadoPago) async {
-    final ok = await _cambiarEstadoUsecase(idPago, idEstadoPago);
-    if (ok) await cargar();
-    return ok;
+    _error = null;
+    try {
+      await _cambiarEstadoUsecase(idPago, idEstadoPago);
+      await cargar();
+      return true;
+    } catch (e) {
+      _error = e is AppException ? e.message : 'Error al cambiar estado';
+      notifyListeners();
+      return false;
+    }
   }
 }

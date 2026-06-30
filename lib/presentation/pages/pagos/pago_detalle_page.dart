@@ -4,6 +4,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../domain/entities/pago.dart';
 import '../../providers/pagos_provider.dart';
+import '../../widgets/estado_badge.dart';
 
 class PagoDetallePage extends StatefulWidget {
   final Pago pago;
@@ -32,26 +33,67 @@ class _PagoDetallePageState extends State<PagoDetallePage> {
   Future<void> _guardar() async {
     if (_estadoSeleccionado == widget.pago.idEstadoPago) return;
 
+    final provider = context.read<PagosProvider>();
+    final target = _estados.firstWhere(
+      (e) => e.id == _estadoSeleccionado,
+      orElse: () => (id: 0, nombre: ''),
+    );
+
+    // Validar es definitivo: un pago validado queda bloqueado → confirmar
+    if (target.nombre.toLowerCase() == 'validado') {
+      final confirm = await _confirmarValidacion();
+      if (confirm != true) return;
+    }
+
     setState(() => _guardando = true);
-    final ok = await context
-        .read<PagosProvider>()
-        .cambiarEstado(widget.pago.idPago, _estadoSeleccionado);
+    final ok = await provider.cambiarEstado(
+      widget.pago.idPago,
+      _estadoSeleccionado,
+    );
     if (!mounted) return;
     setState(() => _guardando = false);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(ok ? 'Estado actualizado' : 'Error al actualizar'),
+        content: Text(
+          ok ? 'Estado actualizado' : (provider.error ?? 'Error al actualizar'),
+        ),
         backgroundColor: ok ? const Color(0xFF10B981) : AppColors.destructive,
       ),
     );
     if (ok) Navigator.of(context).pop();
   }
 
+  Future<bool?> _confirmarValidacion() {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Validar este pago?'),
+        content: const Text(
+          'Validar es definitivo: una vez validado, el pago no podrá '
+          'cambiar de estado.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Volver'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sí, validar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pago = widget.pago;
-    final validado = pago.estadoPago.toLowerCase() == 'validado';
+    final estadoColor = EstadoBadge.colorForEstado(pago.estadoPago);
+    // Validado y Anulado son terminales: no se pueden modificar.
+    final terminal =
+        ['validado', 'anulado'].contains(pago.estadoPago.toLowerCase());
 
     return Scaffold(
       appBar: AppBar(title: Text('Pago #${pago.idPago}')),
@@ -83,9 +125,7 @@ class _PagoDetallePageState extends State<PagoDetallePage> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: validado
-                          ? const Color(0xFF10B981).withValues(alpha: 0.1)
-                          : const Color(0xFFF59E0B).withValues(alpha: 0.1),
+                      color: estadoColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -93,9 +133,7 @@ class _PagoDetallePageState extends State<PagoDetallePage> {
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
-                        color: validado
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFFF59E0B),
+                        color: estadoColor,
                       ),
                     ),
                   ),
@@ -119,57 +157,77 @@ class _PagoDetallePageState extends State<PagoDetallePage> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Cambiar estado',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _estados.map((e) {
-                final selected = _estadoSeleccionado == e.id;
-                return GestureDetector(
-                  onTap: () => setState(() => _estadoSeleccionado = e.id),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                    decoration: BoxDecoration(
-                      color: selected ? AppColors.primary : Colors.white,
-                      border: Border.all(
-                        color: selected ? AppColors.primary : AppColors.border,
-                        width: selected ? 2 : 1,
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      e.nombre,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                        color: selected ? Colors.white : AppColors.foreground,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: (_guardando || _estadoSeleccionado == widget.pago.idEstadoPago)
-                    ? null
-                    : _guardar,
-                child: _guardando
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Guardar cambio'),
+            if (terminal)
+              // Estado terminal: un pago validado/anulado no se puede modificar
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: estadoColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: estadoColor.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  'Este pago está ${pago.estadoPago.toLowerCase()} y no puede modificarse.',
+                  style: TextStyle(fontSize: 13, color: estadoColor),
+                ),
+              )
+            else ...[
+              const Text(
+                'Cambiar estado',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
               ),
-            ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _estados.map((e) {
+                  final selected = _estadoSeleccionado == e.id;
+                  return GestureDetector(
+                    onTap: () => setState(() => _estadoSeleccionado = e.id),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: selected ? AppColors.primary : Colors.white,
+                        border: Border.all(
+                          color: selected ? AppColors.primary : AppColors.border,
+                          width: selected ? 2 : 1,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        e.nombre,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight:
+                              selected ? FontWeight.w600 : FontWeight.normal,
+                          color: selected ? Colors.white : AppColors.foreground,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: (_guardando ||
+                          _estadoSeleccionado == widget.pago.idEstadoPago)
+                      ? null
+                      : _guardar,
+                  child: _guardando
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Guardar cambio'),
+                ),
+              ),
+            ],
           ],
         ),
       ),

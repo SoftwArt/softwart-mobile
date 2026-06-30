@@ -1,6 +1,7 @@
 import '../../core/errors/exceptions.dart';
 import '../../core/utils/token_storage.dart';
 import '../../domain/entities/pedido.dart';
+import '../../domain/entities/estado_servicio.dart';
 import '../../domain/repositories/pedidos_repository.dart';
 import '../datasources/pedidos_datasource.dart';
 
@@ -18,6 +19,11 @@ class PedidosRepositoryImpl implements PedidosRepository {
   @override
   Future<List<Pedido>> getPedidos() async {
     return _datasource.getPedidos(await _getToken());
+  }
+
+  @override
+  Future<List<EstadoServicio>> getEstadosServicio() async {
+    return _datasource.getEstadosServicio(await _getToken());
   }
 
   @override

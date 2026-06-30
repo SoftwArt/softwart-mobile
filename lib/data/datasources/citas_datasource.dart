@@ -56,7 +56,15 @@ class CitasDatasource {
             throw const UnauthorizedException('Sesión expirada');
           }
           if (response.statusCode != 200) {
-            throw ServerException('Error al cambiar estado');
+            String msg = 'Error al cambiar estado';
+            try {
+              final body = jsonDecode(response.body) as Map<String, dynamic>;
+              if (body['message'] is String &&
+                  (body['message'] as String).isNotEmpty) {
+                msg = body['message'] as String;
+              }
+            } catch (_) {}
+            throw ServerException(msg);
           }
         } on AppException {
           rethrow;

@@ -2,7 +2,7 @@ class Pedido {
   final int idDetalle;
   final int idVenta;
   final String? nombreServicio;
-  final String? descripcion;
+  final String? observacion;
   final int idEstado;
   final String estado;
   final double precio;
@@ -11,7 +11,7 @@ class Pedido {
     required this.idDetalle,
     required this.idVenta,
     this.nombreServicio,
-    this.descripcion,
+    this.observacion,
     required this.idEstado,
     required this.estado,
     required this.precio,

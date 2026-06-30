@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../core/constants/api_constants.dart';
 import '../../core/errors/exceptions.dart';
+import '../../domain/entities/estado_servicio.dart';
 import '../models/pedido_model.dart';
+import '../models/estado_servicio_model.dart';
 
 class PedidosDatasource {
   Future<List<PedidoModel>> getPedidos(String token) async {
@@ -36,6 +38,37 @@ class PedidosDatasource {
     }
   }
 
+  Future<List<EstadoServicio>> getEstadosServicio(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.serviceStatus}'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 401) {
+        throw const UnauthorizedException('Sesión expirada');
+      }
+      if (response.statusCode != 200) {
+        throw ServerException(
+          'Error al cargar estados (${response.statusCode})',
+        );
+      }
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = body['data'] as List<dynamic>;
+      return data
+          .map((e) => EstadoServicioModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on AppException {
+      rethrow;
+    } catch (e) {
+      throw NetworkException('Error de conexión: $e');
+    }
+  }
+
   Future<void> cambiarEstado({
     required String token,
     required int idDetalle,
@@ -57,12 +90,23 @@ class PedidosDatasource {
         throw const UnauthorizedException('Sesión expirada');
       }
       if (response.statusCode != 200) {
-        throw ServerException('Error al cambiar estado');
+        // Surface the backend message (p.ej. servicio cancelado → 409)
+        throw ServerException(_mensajeError(response, 'Error al cambiar estado'));
       }
     } on AppException {
       rethrow;
     } catch (e) {
       throw NetworkException('Error de conexión: $e');
     }
+  }
+
+  // Extrae { message } del body cuando el backend devuelve un error
+  String _mensajeError(http.Response response, String fallback) {
+    try {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final msg = body['message'];
+      if (msg is String && msg.isNotEmpty) return msg;
+    } catch (_) {}
+    return fallback;
   }
 }

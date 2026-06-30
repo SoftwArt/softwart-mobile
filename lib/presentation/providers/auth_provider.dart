@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/services/push_notification_service.dart';
 import '../../domain/entities/usuario.dart';
 import '../../domain/usecases/auth/login_usecase.dart';
 import '../../domain/usecases/auth/logout_usecase.dart';
@@ -32,7 +33,16 @@ class AuthProvider extends ChangeNotifier {
     _usuario = usuario;
     _token = token;
     _status = AuthStatus.authenticated;
+    _syncPushSubscription();
     notifyListeners();
+  }
+
+  // Suscribe el dispositivo a las notificaciones del personal (Admin/Empleado)
+  void _syncPushSubscription() {
+    final u = _usuario;
+    if (u != null && (u.isAdmin || u.isEmpleado)) {
+      PushNotificationService.subscribeStaff().catchError((_) {});
+    }
   }
 
   void setUnauthenticated() {
@@ -52,6 +62,7 @@ class AuthProvider extends ChangeNotifier {
       _usuario = result.usuario;
       _token = result.token;
       _status = AuthStatus.authenticated;
+      _syncPushSubscription();
       notifyListeners();
       return true;
     } catch (e) {
@@ -63,6 +74,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    await PushNotificationService.unsubscribeStaff().catchError((_) {});
     await _logoutUsecase();
     _usuario = null;
     _token = null;

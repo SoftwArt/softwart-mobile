@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'core/constants/api_constants.dart';
+import 'core/services/push_notification_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/token_storage.dart';
 import 'data/datasources/citas_datasource.dart';
@@ -31,6 +35,7 @@ import 'domain/usecases/pagos/cambiar_estado_pago_usecase.dart';
 import 'domain/usecases/pagos/get_pagos_usecase.dart';
 import 'domain/usecases/pedidos/cambiar_estado_pedido_usecase.dart';
 import 'domain/usecases/pedidos/get_pedidos_usecase.dart';
+import 'domain/usecases/pedidos/get_estados_servicio_usecase.dart';
 import 'domain/usecases/ventas/get_estado_pagos_usecase.dart';
 import 'domain/usecases/ventas/get_ventas_usecase.dart';
 import 'presentation/pages/auth/login_page.dart';
@@ -43,7 +48,15 @@ import 'presentation/providers/pagos_provider.dart';
 import 'presentation/providers/pedidos_provider.dart';
 import 'presentation/providers/ventas_provider.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    await PushNotificationService.init();
+  } catch (e) {
+    debugPrint('Push init falló: $e');
+  }
   runApp(const SoftwArtApp());
 }
 
@@ -83,6 +96,7 @@ class SoftwArtApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => PedidosProvider(
             getPedidosUsecase: GetPedidosUsecase(pedidosRepo),
+            getEstadosUsecase: GetEstadosServicioUsecase(pedidosRepo),
             cambiarEstadoUsecase: CambiarEstadoPedidoUsecase(pedidosRepo),
           ),
         ),
@@ -106,6 +120,7 @@ class SoftwArtApp extends StatelessWidget {
       ],
       child: MaterialApp(
         title: 'SoftwArt',
+        scaffoldMessengerKey: PushNotificationService.messengerKey,
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         home: const _Splash(),
@@ -127,16 +142,45 @@ class _Splash extends StatefulWidget {
 }
 
 class _SplashState extends State<_Splash> {
+  // Mismos tiempos que el frontend web (useBackendWakeup):
+  static const _showMessageAfter = Duration(milliseconds: 800); // muestra el mensaje si tarda
+  static const _requestTimeout   = Duration(seconds: 5);        // timeout por intento + espera entre reintentos
+
+  bool _showMessage = false;
+  Timer? _messageTimer;
+
   @override
   void initState() {
     super.initState();
-    _checkAuth();
+    // El spinner aparece siempre; el mensaje de conexión solo si tarda más de 800ms.
+    _messageTimer = Timer(_showMessageAfter, () {
+      if (mounted) setState(() => _showMessage = true);
+    });
+    _boot();
+  }
+
+  Future<void> _boot() async {
+    await _wakeBackend();        // despierta el backend (cold start) antes de navegar
+    _messageTimer?.cancel();
+    if (!mounted) return;
+    await _checkAuth();
+  }
+
+  // Pinga /services (ruta pública) hasta que el backend responda — reintenta hasta conectar.
+  Future<void> _wakeBackend() async {
+    final uri = Uri.parse('${ApiConstants.baseUrl}/services');
+    while (mounted) {
+      try {
+        await http.get(uri).timeout(_requestTimeout);
+        return; // backend despierto
+      } catch (_) {
+        // aún no responde — espera antes de reintentar (igual que el frontend)
+        await Future.delayed(_requestTimeout);
+      }
+    }
   }
 
   Future<void> _checkAuth() async {
-    // Warmup ping: despierta el servidor de Render (endpoint público, sin auth)
-    http.get(Uri.parse('${ApiConstants.baseUrl}/services')).ignore();
-
     final hasToken = await TokenStorage.hasValidToken();
 
     if (!mounted) return;
@@ -170,6 +214,12 @@ class _SplashState extends State<_Splash> {
     final decoded = utf8.decode(base64Url.decode(normalized));
     final Map<String, dynamic> jsonPayload = jsonDecode(decoded);
     return UsuarioModel.fromJson(jsonPayload);
+  }
+
+  @override
+  void dispose() {
+    _messageTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -221,7 +271,7 @@ class _SplashState extends State<_Splash> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Iniciando...',
+                _showMessage ? 'Conectando con el servidor…' : 'Iniciando…',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.55),
                   fontSize: 13,

@@ -34,8 +34,11 @@ class EstadoBadge extends StatelessWidget {
         return const Color(0xFFF59E0B); // amber
       case 'completada':
       case 'finalizado':
+      case 'validado':
         return const Color(0xFF10B981); // green
       case 'cancelada':
+      case 'cancelado':
+      case 'anulado':
       case 'no asistió':
         return AppColors.destructive;
       case 'en preparación':
